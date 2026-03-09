@@ -3,7 +3,6 @@ import { Track } from './types';
 
 // List of public Hifi API instances provided by the user.
 export const API_INSTANCES = [
-  'https://monochrome-api.samidy.com',
   'https://api.monochrome.tf',
   'https://arran.monochrome.tf',
   'https://triton.squid.wtf',
