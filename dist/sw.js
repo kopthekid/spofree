@@ -1,8 +1,10 @@
 const CACHE_NAME = 'spofree-shell-v1';
+const BASE_URL = new URL('./', self.location.href);
+const APP_ROOT = BASE_URL.pathname;
 const APP_SHELL = [
-  '/',
-  '/manifest.webmanifest',
-  '/ios-logo.png'
+  APP_ROOT,
+  new URL('manifest.webmanifest', BASE_URL).pathname,
+  new URL('ios-logo.png', BASE_URL).pathname
 ];
 
 self.addEventListener('install', event => {
@@ -35,7 +37,7 @@ self.addEventListener('fetch', event => {
 
   if (request.mode === 'navigate' && url.origin === self.location.origin) {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/'))
+      fetch(request).catch(() => caches.match(APP_ROOT))
     );
     return;
   }

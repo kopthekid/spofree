@@ -2,21 +2,21 @@
   "name": "SpoFree",
   "short_name": "SpoFree",
   "description": "Static high-fidelity music streaming client with custom lyrics and optional romanization support.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#000000",
   "theme_color": "#121212",
   "icons": [
     {
-      "src": "/ios-logo.png",
+      "src": "./ios-logo.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/ios-logo.png",
+      "src": "./ios-logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
