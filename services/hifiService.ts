@@ -64,6 +64,19 @@ const enforceHttps = (url: string): string => {
     return url.replace(/^http:/, 'https:');
 };
 
+const decodeManifest = (manifest: string): string | null => {
+  if (!manifest) return null;
+
+  const normalized = manifest.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+
+  try {
+    return atob(padded);
+  } catch {
+    return null;
+  }
+};
+
 const extractUrlFromManifest = (manifestText: string): string | null => {
   if (!manifestText) return null;
   const text = manifestText.trim();
@@ -224,47 +237,54 @@ export const getStreamUrl = async (trackId: string | number): Promise<string> =>
   const TIMEOUT = 15000; 
 
   for (const quality of qualities) {
-      try {
-          const response = await fetchWithFailover(`/track/?id=${trackId}&quality=${quality}`, {}, TIMEOUT);
-          if (!response.ok) continue;
+      let instanceAttempts = 0;
 
-          const json = await response.json();
-          
-          let items: any[] = [];
-          if (json.data) items = [json.data]; 
-          else if (Array.isArray(json)) items = json;
-          else items = [json];
-
-          // 1. Direct URL check
-          for (const item of items) {
-              const directUrl = item.OriginalTrackUrl || item.originalTrackUrl || item.url;
-              if (directUrl && directUrl.startsWith('http')) {
-                  console.log(`[Stream] Found direct URL (${quality})`);
-                  return enforceHttps(directUrl);
+      while (instanceAttempts < API_INSTANCES.length) {
+          try {
+              const response = await fetchWithFailover(`/track/?id=${trackId}&quality=${quality}`, {}, TIMEOUT);
+              if (!response.ok) {
+                  instanceAttempts++;
+                  continue;
               }
-          }
 
-          // 2. Manifest check
-          for (const item of items) {
-              if (item.manifest) {
-                  try {
-                      const base64 = item.manifest.replace(/-/g, '+').replace(/_/g, '/');
-                      const decoded = atob(base64);
-                      
-                      if (decoded.includes('SegmentTemplate') && !decoded.includes('BaseURL')) continue;
+              const json = await response.json();
+              
+              let items: any[] = [];
+              if (json.data) items = [json.data]; 
+              else if (Array.isArray(json)) items = json;
+              else items = [json];
 
-                      const url = extractUrlFromManifest(decoded);
-                      if (url) {
-                          console.log(`[Stream] Decoded manifest (${quality})`);
-                          return url;
-                      }
-                  } catch (e) {
-                      const url = extractUrlFromManifest(item.manifest);
-                      if (url) return url;
+              for (const item of items) {
+                  const directUrl = item.OriginalTrackUrl || item.originalTrackUrl || item.url;
+                  if (directUrl && directUrl.startsWith('http')) {
+                      console.log(`[Stream] Found direct URL (${quality})`);
+                      return enforceHttps(directUrl);
                   }
               }
+
+              for (const item of items) {
+                  if (!item.manifest) continue;
+
+                  const decoded = decodeManifest(item.manifest);
+                  const manifestToParse = decoded || item.manifest;
+
+                  if (decoded && decoded.includes('SegmentTemplate') && !decoded.includes('BaseURL')) {
+                      continue;
+                  }
+
+                  const url = extractUrlFromManifest(manifestToParse);
+                  if (url) {
+                      console.log(`[Stream] Decoded manifest (${quality})`);
+                      return url;
+                  }
+              }
+          } catch (e) {
+              // Move to the next instance below.
           }
-      } catch (e) { }
+
+          rotateInstance();
+          instanceAttempts++;
+      }
   }
 
   throw new Error("Failed to resolve a playable stream URL.");
