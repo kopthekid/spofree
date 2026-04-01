@@ -32,7 +32,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Fix executable permissions for local npm bins
+        run: chmod -R a+x node_modules/.bin || true
 
       - name: Build
         run: npm run build
