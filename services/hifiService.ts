@@ -16,6 +16,7 @@ const rotateInstance = () => {
 const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeoutMs: number = 10000): Promise<Response> => {
   const maxRetries = API_INSTANCES.length;
   let attempts = 0;
+  let lastResponse: Response | null = null;
 
   while (attempts < maxRetries) {
     const baseUrl = API_INSTANCES[currentInstanceIndex];
@@ -28,10 +29,11 @@ const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeou
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
 
-      if (response.status === 429 || response.status >= 500) {
-         rotateInstance();
-         attempts++;
-         continue;
+      if (!response.ok) {
+        lastResponse = response;
+        rotateInstance();
+        attempts++;
+        continue;
       }
       return response;
     } catch (err: any) {
@@ -40,6 +42,11 @@ const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeou
       attempts++;
     }
   }
+
+  if (lastResponse) {
+    return lastResponse;
+  }
+
   throw new Error("All API instances failed.");
 };
 
