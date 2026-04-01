@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Check, Wifi, Palette, Sliders, Timer, ListCollapse, EyeOff, Square, Monitor, Gauge, Droplets, Type, Keyboard, Activity } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Check, Wifi, Palette, Sliders, Timer, ListCollapse, EyeOff, Square, Monitor, Gauge, Droplets, Type, Keyboard, Activity, X } from 'lucide-react';
 import { Button } from './Button';
 import { AudioQuality } from '../types';
 import { ShortcutsModal } from './ShortcutsModal';
@@ -66,6 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
     const [customTimer, setCustomTimer] = useState('');
     const [showShortcuts, setShowShortcuts] = useState(false);
+    const [isStandalonePwa, setIsStandalonePwa] = useState(false);
 
     const themes = ['#1db954', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#ef4444', '#10b981', '#ffffff'];
 
@@ -89,6 +90,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             setSleepTimer(val);
         }
     };
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const mediaQuery = window.matchMedia('(display-mode: standalone)');
+        const updateStandaloneState = () => {
+            const iosStandalone = typeof (navigator as any).standalone === 'boolean' && Boolean((navigator as any).standalone);
+            setIsStandalonePwa(mediaQuery.matches || iosStandalone);
+        };
+
+        updateStandaloneState();
+        mediaQuery.addEventListener?.('change', updateStandaloneState);
+
+        return () => {
+            mediaQuery.removeEventListener?.('change', updateStandaloneState);
+        };
+    }, []);
 
     const ToggleItem = ({ label, desc, icon: Icon, active, onToggle, colorClass = 'text-gray-500' }: any) => (
         <div 
@@ -307,13 +325,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* Content */}
                 <div className="flex-1 flex flex-col min-h-0">
-                    <div className="flex justify-between md:justify-end items-center p-4">
-                         <span className="md:hidden text-xs text-[#535353] font-mono">v2.2</span>
+                    <div className="flex justify-between md:justify-end items-center p-4 gap-3">
+                        <div className="flex items-center gap-3 md:hidden">
+                            <span className="text-xs text-[#535353] font-mono">v2.2</span>
+                            {isStandalonePwa && (
+                                <button
+                                    onClick={onClose}
+                                    className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-black transition-colors hover:bg-white/90"
+                                >
+                                    <X size={14} />
+                                    Exit Settings
+                                </button>
+                            )}
+                        </div>
                         <button onClick={onClose} className="p-2 hover:bg-[#282828] rounded-full transition-colors"><Check /></button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 md:p-8 pt-0">
                         {renderContent()}
                     </div>
+                    {isStandalonePwa && (
+                        <div className="md:hidden p-4 pt-0 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                            <Button className="w-full" onClick={onClose}>
+                                Exit Settings
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
             

@@ -64,6 +64,31 @@ const enforceHttps = (url: string): string => {
     return url.replace(/^http:/, 'https:');
 };
 
+const isAppleMobileBrowser = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+
+  const userAgent = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+
+  const isiPhoneOrIPad = /iPhone|iPad|iPod/.test(userAgent);
+  const isTouchMac = platform === 'MacIntel' && maxTouchPoints > 1;
+
+  return isiPhoneOrIPad || isTouchMac;
+};
+
+const getQualityPriority = (preferredQuality: AudioQuality): AudioQuality[] => {
+  const fallbackOrder: AudioQuality[] = ['LOSSLESS', 'HIGH', 'LOW', 'HI_RES'];
+
+  // iOS Safari/PWA is far more reliable with AAC/MP4 than FLAC.
+  if (isAppleMobileBrowser()) {
+    const mobileOrder: AudioQuality[] = ['HIGH', 'LOW', 'LOSSLESS', 'HI_RES'];
+    return [preferredQuality, ...mobileOrder.filter(q => q !== preferredQuality)];
+  }
+
+  return [preferredQuality, ...fallbackOrder.filter(q => q !== preferredQuality)];
+};
+
 const decodeManifest = (manifest: string): string | null => {
   if (!manifest) return null;
 
@@ -225,14 +250,7 @@ export const searchAll = async (query: string): Promise<SearchResult> => {
 export const getStreamUrl = async (trackId: string | number): Promise<string> => {
   // Get preferred quality from storage
   const preferredQuality = storageService.getQuality();
-  
-  // Create priority list based on preference
-  const qualities: AudioQuality[] = [preferredQuality];
-  
-  // Add others as fallback
-  ['LOSSLESS', 'HIGH', 'LOW', 'HI_RES'].forEach(q => {
-      if (q !== preferredQuality) qualities.push(q as AudioQuality);
-  });
+  const qualities = getQualityPriority(preferredQuality);
 
   const TIMEOUT = 15000; 
 
