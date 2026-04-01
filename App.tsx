@@ -4,6 +4,7 @@ import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
 import { TrackList } from './components/TrackList';
 import { ImportModal } from './components/ImportModal';
+import { LyricsEditModal } from './components/LyricsEditModal';
 import { PlaylistEditModal } from './components/PlaylistEditModal';
 import { SettingsModal, SettingsTab } from './components/SettingsModal';
 import { AddToPlaylistModal } from './components/AddToPlaylistModal';
@@ -140,6 +141,7 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsStartTab, setSettingsStartTab] = useState<SettingsTab>('QUALITY');
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null); 
+  const [lyricsEditorTrack, setLyricsEditorTrack] = useState<Track | null>(null);
 
   const updateConnectionStatus = () => setConnectedInstance(getCurrentApiUrl());
 
@@ -163,6 +165,58 @@ const App: React.FC = () => {
       setHighPerformanceMode(storageService.getHighPerformanceMode());
       setDisableGlow(storageService.getDisableGlow());
       setUpdateTitle(storageService.getUpdateTitle());
+  };
+
+  const syncHydratedTracks = (trackId?: string | number) => {
+      if (trackId !== undefined) {
+          setCurrentTrack(prev => prev && prev.id === trackId ? storageService.hydrateTrack(prev) : prev);
+      } else {
+          setCurrentTrack(prev => prev ? storageService.hydrateTrack(prev) : prev);
+      }
+
+      setQueue(prev => storageService.hydrateTracks(prev));
+      setOriginalQueue(prev => storageService.hydrateTracks(prev));
+      setResultTracks(prev => storageService.hydrateTracks(prev));
+
+      setHistoryStack(prev => prev.map(entry => (
+          entry.detailTracks
+            ? { ...entry, detailTracks: storageService.hydrateTracks(entry.detailTracks) }
+            : entry
+      )));
+  };
+
+  const clearLyricsFromTrack = (track: Track): Track => {
+      const { lyrics, romanizedLyrics, lyricsLanguage, ...rest } = track;
+      return rest as Track;
+  };
+
+  const handleOpenLyricsEditor = (track: Track) => {
+      setLyricsEditorTrack(storageService.hydrateTrack(track));
+  };
+
+  const handleSaveCustomLyrics = (
+      trackId: string | number,
+      payload: { lyrics: string; romanizedLyrics?: string; lyricsLanguage?: Track['lyricsLanguage'] }
+  ) => {
+      storageService.saveCustomLyrics(trackId, payload);
+      refreshLibrary();
+      syncHydratedTracks(trackId);
+      setLyricsEditorTrack(prev => prev && prev.id === trackId ? storageService.hydrateTrack(prev) : prev);
+  };
+
+  const handleRemoveCustomLyrics = (trackId: string | number) => {
+      storageService.removeCustomLyrics(trackId);
+      refreshLibrary();
+      setCurrentTrack(prev => prev && prev.id === trackId ? clearLyricsFromTrack(prev) : prev);
+      setQueue(prev => prev.map(track => track.id === trackId ? clearLyricsFromTrack(track) : track));
+      setOriginalQueue(prev => prev.map(track => track.id === trackId ? clearLyricsFromTrack(track) : track));
+      setResultTracks(prev => prev.map(track => track.id === trackId ? clearLyricsFromTrack(track) : track));
+      setHistoryStack(prev => prev.map(entry => (
+          entry.detailTracks
+            ? { ...entry, detailTracks: entry.detailTracks.map(track => track.id === trackId ? clearLyricsFromTrack(track) : track) }
+            : entry
+      )));
+      setLyricsEditorTrack(prev => prev && prev.id === trackId ? clearLyricsFromTrack(prev) : prev);
   };
 
   const fetchHomeContent = async () => {
@@ -327,24 +381,26 @@ const App: React.FC = () => {
       setIsPlaying(!isPlaying);
       return;
     }
-    setOriginalQueue(context);
+    const hydratedTrack = storageService.hydrateTrack(track);
+    const hydratedContext = storageService.hydrateTracks(context);
+    setOriginalQueue(hydratedContext);
     if (isShuffling) {
-        setQueue(shuffleQueue(context, track));
+        setQueue(shuffleQueue(hydratedContext, hydratedTrack));
     } else {
-        setQueue(context);
+        setQueue(hydratedContext);
     }
     
-    setCurrentTrack(track);
+    setCurrentTrack(hydratedTrack);
     setIsPlaying(false);
     setError(null);
     
-    storageService.addToRecentlyPlayed({ type: 'TRACK', data: track, timestamp: Date.now() });
+    storageService.addToRecentlyPlayed({ type: 'TRACK', data: hydratedTrack, timestamp: Date.now() });
     refreshLibrary();
 
     try {
         const streamUrl = await getStreamUrl(track.id);
         updateConnectionStatus();
-        setCurrentTrack({ ...track, streamUrl });
+        setCurrentTrack({ ...hydratedTrack, streamUrl });
         setIsPlaying(true);
     } catch (err: any) {
         console.error("Play error:", err);
@@ -449,7 +505,7 @@ const App: React.FC = () => {
           
           if (type === 'ALBUM') {
               viewState = ViewState.ALBUM_DETAILS;
-              tracks = await getAlbumTracks(item.id);
+              tracks = storageService.hydrateTracks(await getAlbumTracks(item.id));
               if (tracks.length > 0 && (item.title === 'Loading...' || !item.cover)) {
                   loadingState.title = tracks[0].album.title;
                   loadingState.cover = tracks[0].album.cover;
@@ -463,7 +519,7 @@ const App: React.FC = () => {
               }
           } else if (type === 'PLAYLIST') {
               viewState = ViewState.PLAYLIST_DETAILS;
-              tracks = item.isLocal ? (item.tracks || []) : await getPlaylistTracks(item.uuid);
+              tracks = item.isLocal ? storageService.hydrateTracks(item.tracks || []) : storageService.hydrateTracks(await getPlaylistTracks(item.uuid));
           }
           
           storageService.addToRecentlyPlayed({ 
@@ -1109,6 +1165,7 @@ const App: React.FC = () => {
                         onClearQueue={() => setQueue(currentTrack ? [currentTrack] : [])}
                         onSaveQueue={handleSaveQueueAsPlaylist}
                         accentColor={accentColor}
+                        onEditLyrics={handleOpenLyricsEditor}
                     />
                 </div>
             )}
@@ -1139,6 +1196,7 @@ const App: React.FC = () => {
         toggleQueue={() => setRightSidebarMode(mode => mode === 'QUEUE' ? null : 'QUEUE')}
         showLyrics={rightSidebarMode === 'LYRICS'}
         toggleLyrics={() => setRightSidebarMode(mode => mode === 'LYRICS' ? null : 'LYRICS')}
+        onEditLyrics={handleOpenLyricsEditor}
         queue={queue}
         onPlayTrack={(t) => playTrack(t, queue)}
       />
@@ -1146,6 +1204,15 @@ const App: React.FC = () => {
       <DownloadManager singleDownload={singleDownloadState} zipDownload={zipDownloadState} />
 
       {showImportModal && <ImportModal onClose={() => setShowImportModal(false)} onImport={(title, tracks) => { const p = storageService.createPlaylist(title); tracks.forEach(t => storageService.addTrackToPlaylist(p.uuid, t)); refreshLibrary(); }} />}
+
+      {lyricsEditorTrack && (
+        <LyricsEditModal
+            track={lyricsEditorTrack}
+            onClose={() => setLyricsEditorTrack(null)}
+            onSave={handleSaveCustomLyrics}
+            onRemove={handleRemoveCustomLyrics}
+        />
+      )}
       
       {showPlaylistEditModal && selectedEntity && (
         <PlaylistEditModal 

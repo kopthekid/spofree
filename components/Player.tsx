@@ -5,6 +5,7 @@ import { Track, RepeatMode } from '../types';
 import { storageService } from '../services/storageService';
 import { TrackList } from './TrackList';
 import { Visualizer } from './Visualizer';
+import { LyricsPanel } from './LyricsPanel';
 
 interface PlayerProps {
   currentTrack: Track | null;
@@ -35,6 +36,7 @@ interface PlayerProps {
   toggleQueue: () => void;
   showLyrics: boolean;
   toggleLyrics: () => void;
+  onEditLyrics: (track: Track) => void;
 
   // Queue Data
   queue: Track[];
@@ -53,7 +55,7 @@ export const Player: React.FC<PlayerProps> = ({
     isShuffling, repeatMode, onToggleShuffle, onToggleRepeat,
     onArtistClick, onQualityClick, onDownload,
     accentColor, showVisualizer, showStats, sleepTimer, setSleepTimer, highPerformanceMode, disableGlow,
-    showQueue, toggleQueue, showLyrics, toggleLyrics,
+    showQueue, toggleQueue, showLyrics, toggleLyrics, onEditLyrics,
     queue, onPlayTrack
 }) => {
   const [progress, setProgress] = useState(0);
@@ -221,21 +223,13 @@ export const Player: React.FC<PlayerProps> = ({
 
              {showLyrics ? (
                 /* Full Screen Lyrics View */
-                <div className="relative z-10 flex flex-col items-center justify-center p-8 min-h-[calc(100vh-100px)] text-center">
-                    <div className="max-w-xl space-y-8 animate-fade-in">
-                        <div className="flex flex-col gap-2 mb-8">
-                            <h1 className="text-3xl font-bold">{currentTrack.title}</h1>
-                            <h2 className="text-xl text-white/70">{currentTrack.artist.name}</h2>
-                        </div>
-                        <div className="space-y-8 text-2xl md:text-4xl font-bold text-white/50 leading-relaxed">
-                            <p className="text-white scale-105 transition-transform" style={{ textShadow: `0 0 30px ${accentColor}60` }}>
-                                (Instrumental or Lyrics not available)
-                            </p>
-                            <p>We're still working on fetching<br/>real-time lyrics for this track.</p>
-                            <p>Just enjoy the vibe<br/>for now.</p>
-                            <p>♫ ♫ ♫</p>
-                        </div>
-                    </div>
+                <div className="relative z-10 animate-fade-in">
+                    <LyricsPanel
+                        track={currentTrack}
+                        accentColor={accentColor}
+                        onEditLyrics={onEditLyrics}
+                        variant="fullscreen"
+                    />
                 </div>
              ) : (
                 /* Standard Controls View */

@@ -1,8 +1,46 @@
 
 
-import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist } from '../types';
+import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist, CustomLyrics } from '../types';
 
 const STORAGE_KEY = 'spofreefy_data_v1';
+
+const toTrackKey = (trackId: string | number) => String(trackId);
+
+const applyLyricsToTrack = (track: Track, customLyrics?: CustomLyrics): Track => {
+  if (!customLyrics) return track;
+
+  return {
+    ...track,
+    lyrics: customLyrics.lyrics,
+    romanizedLyrics: customLyrics.romanizedLyrics,
+    lyricsLanguage: customLyrics.lyricsLanguage
+  };
+};
+
+const stripLyricsFromTrack = (track: Track): Track => {
+  const { lyrics, romanizedLyrics, lyricsLanguage, ...rest } = track;
+  return rest as Track;
+};
+
+const applyLyricsToPlaylist = (
+  playlist: Playlist,
+  customLyricsMap: Record<string, CustomLyrics>
+): Playlist => ({
+  ...playlist,
+  tracks: playlist.tracks?.map(track => applyLyricsToTrack(track, customLyricsMap[toTrackKey(track.id)])) || []
+});
+
+const applyLyricsToRecentItem = (
+  item: RecentlyPlayedItem,
+  customLyricsMap: Record<string, CustomLyrics>
+): RecentlyPlayedItem => {
+  if (item.type !== 'TRACK') return item;
+
+  return {
+    ...item,
+    data: applyLyricsToTrack(item.data as Track, customLyricsMap[toTrackKey((item.data as Track).id)])
+  };
+};
 
 const getStorage = (): LocalStorageData => {
   const data = localStorage.getItem(STORAGE_KEY);
@@ -11,6 +49,7 @@ const getStorage = (): LocalStorageData => {
     playlists: [], 
     savedAlbums: [],
     followedArtists: [],
+    customLyrics: {},
     searchHistory: [],
     audioQuality: 'LOSSLESS',
     recentlyPlayed: [],
@@ -41,6 +80,57 @@ const setStorage = (data: LocalStorageData) => {
 };
 
 export const storageService = {
+  // --- Lyrics ---
+  getCustomLyrics: (trackId: string | number): CustomLyrics | null => {
+    return getStorage().customLyrics[toTrackKey(trackId)] || null;
+  },
+
+  hydrateTrack: (track: Track): Track => {
+    return applyLyricsToTrack(track, getStorage().customLyrics[toTrackKey(track.id)]);
+  },
+
+  hydrateTracks: (tracks: Track[]): Track[] => {
+    const customLyricsMap = getStorage().customLyrics;
+    return tracks.map(track => applyLyricsToTrack(track, customLyricsMap[toTrackKey(track.id)]));
+  },
+
+  saveCustomLyrics: (
+    trackId: string | number,
+    payload: { lyrics: string; romanizedLyrics?: string; lyricsLanguage?: CustomLyrics['lyricsLanguage'] }
+  ): CustomLyrics => {
+    const data = getStorage();
+    const lyrics = payload.lyrics.trim();
+    const romanizedLyrics = payload.romanizedLyrics?.trim() || undefined;
+
+    const saved: CustomLyrics = {
+      lyrics,
+      romanizedLyrics,
+      lyricsLanguage: payload.lyricsLanguage,
+      updatedAt: Date.now()
+    };
+
+    data.customLyrics[toTrackKey(trackId)] = saved;
+    setStorage(data);
+    return saved;
+  },
+
+  removeCustomLyrics: (trackId: string | number) => {
+    const data = getStorage();
+    const key = toTrackKey(trackId);
+    delete data.customLyrics[key];
+    data.likedSongs = data.likedSongs.map(track => track.id === trackId ? stripLyricsFromTrack(track) : track);
+    data.playlists = data.playlists.map(playlist => ({
+      ...playlist,
+      tracks: playlist.tracks?.map(track => track.id === trackId ? stripLyricsFromTrack(track) : track) || []
+    }));
+    data.recentlyPlayed = data.recentlyPlayed.map(item => (
+      item.type === 'TRACK' && (item.data as Track).id === trackId
+        ? { ...item, data: stripLyricsFromTrack(item.data as Track) }
+        : item
+    ));
+    setStorage(data);
+  },
+
   // --- Settings ---
   getQuality: (): AudioQuality => {
       return getStorage().audioQuality;
@@ -154,17 +244,19 @@ export const storageService = {
 
   // --- Liked Songs ---
   getLikedSongs: (): Track[] => {
-    return getStorage().likedSongs;
+    const data = getStorage();
+    return data.likedSongs.map(track => applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]));
   },
   
   toggleLikeSong: (track: Track): boolean => {
     const data = getStorage();
+    const hydratedTrack = applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]);
     const exists = data.likedSongs.some(t => t.id === track.id);
     
     if (exists) {
       data.likedSongs = data.likedSongs.filter(t => t.id !== track.id);
     } else {
-      data.likedSongs = [track, ...data.likedSongs];
+      data.likedSongs = [hydratedTrack, ...data.likedSongs];
     }
     setStorage(data);
     return !exists;
@@ -218,7 +310,8 @@ export const storageService = {
 
   // --- Playlists ---
   getPlaylists: (): Playlist[] => {
-    return getStorage().playlists;
+    const data = getStorage();
+    return data.playlists.map(playlist => applyLyricsToPlaylist(playlist, data.customLyrics));
   },
 
   savePlaylist: (playlist: Playlist): boolean => {
@@ -268,7 +361,7 @@ export const storageService = {
       const data = getStorage();
       const playlist = data.playlists.find(p => p.uuid === uuid);
       if (playlist) {
-          playlist.tracks = tracks;
+          playlist.tracks = tracks.map(track => applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]));
           // Update cover if needed and not custom
           if (playlist.image.includes('placeholder') && tracks.length > 0) {
                playlist.image = tracks[0].album.cover;
@@ -296,10 +389,11 @@ export const storageService = {
   addTrackToPlaylist: (playlistUuid: string, track: Track) => {
     const data = getStorage();
     const playlist = data.playlists.find(p => p.uuid === playlistUuid);
+    const hydratedTrack = applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]);
     if (playlist) {
       if (!playlist.tracks) playlist.tracks = [];
       if (!playlist.tracks.some(t => t.id === track.id)) {
-        playlist.tracks.push(track);
+        playlist.tracks.push(hydratedTrack);
         if (playlist.image.includes('placeholder') && track.album.cover) {
             playlist.image = track.album.cover;
         }
@@ -322,17 +416,21 @@ export const storageService = {
 
   // --- Recently Played ---
   getRecentlyPlayed: (): RecentlyPlayedItem[] => {
-      return getStorage().recentlyPlayed;
+      const data = getStorage();
+      return data.recentlyPlayed.map(item => applyLyricsToRecentItem(item, data.customLyrics));
   },
 
   addToRecentlyPlayed: (item: RecentlyPlayedItem) => {
       const data = getStorage();
+      const hydratedItem = item.type === 'TRACK'
+        ? { ...item, data: applyLyricsToTrack(item.data as Track, data.customLyrics[toTrackKey((item.data as Track).id)]) }
+        : item;
       const filtered = data.recentlyPlayed.filter(i => {
           const existingId = (i.data as any).id || (i.data as any).uuid;
-          const newId = (item.data as any).id || (item.data as any).uuid;
+          const newId = (hydratedItem.data as any).id || (hydratedItem.data as any).uuid;
           return existingId !== newId;
       });
-      data.recentlyPlayed = [item, ...filtered].slice(0, 20); // Keep last 20
+      data.recentlyPlayed = [hydratedItem, ...filtered].slice(0, 20); // Keep last 20
       setStorage(data);
   }
 };

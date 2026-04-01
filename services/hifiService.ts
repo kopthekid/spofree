@@ -118,17 +118,17 @@ const resolveArtistId = (item: any): number | string => {
     return 0;
 };
 
-const parseTrack = (item: any): Track => ({
+const parseTrack = (item: any): Track => storageService.hydrateTrack({
   id: item.id,
   title: item.title || 'Unknown Title',
-  artist: { 
+  artist: {
     id: resolveArtistId(item),
     name: resolveArtistName(item),
     picture: getTidalImage(item.artist?.picture || item.artists?.[0]?.picture, 'artist')
   },
-  album: { 
-    id: item.album?.id || 0, 
-    title: item.album?.title || 'Unknown Album', 
+  album: {
+    id: item.album?.id || 0,
+    title: item.album?.title || 'Unknown Album',
     cover: getTidalImage(item.album?.cover)
   },
   duration: item.duration || 0,
