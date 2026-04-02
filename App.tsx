@@ -17,6 +17,7 @@ import {
 } from './services/hifiService';
 import { fetchLyricsForTrack } from './services/lyricsService';
 import { canAutoRomanize, generateRomanization } from './services/romanizationService';
+import { requestLyricsNotificationPermission, showLyricsNotification } from './services/notificationService';
 import { storageService } from './services/storageService';
 import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Download, Archive, Loader2, Plus, Disc, Mic2, ListMusic, ArrowDownUp, LayoutGrid, List } from 'lucide-react';
 import { Button } from './components/Button';
@@ -116,6 +117,7 @@ const App: React.FC = () => {
   const [highPerformanceMode, setHighPerformanceMode] = useState(false);
   const [disableGlow, setDisableGlow] = useState(false);
   const [autoRomanizeLyrics, setAutoRomanizeLyrics] = useState(false);
+  const [lyricsNotifications, setLyricsNotifications] = useState(false);
   const [updateTitle, setUpdateTitle] = useState(true);
   
   // UI State
@@ -141,6 +143,7 @@ const App: React.FC = () => {
   const playAbortControllerRef = useRef<AbortController | null>(null);
   const lyricsAbortControllerRef = useRef<AbortController | null>(null);
   const romanizationAbortControllerRef = useRef<AbortController | null>(null);
+  const lyricsNotificationKeyRef = useRef('');
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
@@ -173,6 +176,7 @@ const App: React.FC = () => {
       setHighPerformanceMode(storageService.getHighPerformanceMode());
       setDisableGlow(storageService.getDisableGlow());
       setAutoRomanizeLyrics(storageService.getAutoRomanizeLyrics());
+      setLyricsNotifications(storageService.getLyricsNotifications());
       setUpdateTitle(storageService.getUpdateTitle());
   };
 
@@ -226,6 +230,31 @@ const App: React.FC = () => {
             : entry
       )));
       setLyricsEditorTrack(prev => prev && prev.id === trackId ? clearLyricsFromTrack(prev) : prev);
+  };
+
+  const handleSetLyricsNotifications = async (enabled: boolean) => {
+      if (!enabled) {
+          storageService.setLyricsNotifications(false);
+          setLyricsNotifications(false);
+          lyricsNotificationKeyRef.current = '';
+          return;
+      }
+
+      const permission = await requestLyricsNotificationPermission();
+      if (permission !== 'granted') {
+          storageService.setLyricsNotifications(false);
+          setLyricsNotifications(false);
+
+          if (permission === 'unsupported') {
+              alert('Lyrics notifications need browser notification support, HTTPS, and the service worker.');
+          } else if (permission === 'denied') {
+              alert('Notifications are blocked right now. Re-enable them in your browser or iOS PWA settings, then try again.');
+          }
+          return;
+      }
+
+      storageService.setLyricsNotifications(true);
+      setLyricsNotifications(true);
   };
 
   const fetchHomeContent = async () => {
@@ -402,6 +431,38 @@ const App: React.FC = () => {
           controller.abort();
       };
   }, [autoRomanizeLyrics, currentTrack?.id, currentTrack?.lyrics]);
+
+  useEffect(() => {
+      if (!lyricsNotifications || !currentTrack) {
+          lyricsNotificationKeyRef.current = '';
+          return;
+      }
+
+      const hydratedTrack = storageService.hydrateTrack(currentTrack);
+      const visibleLyrics = (
+          autoRomanizeLyrics && hydratedTrack.romanizedLyrics?.trim()
+            ? hydratedTrack.romanizedLyrics
+            : hydratedTrack.lyrics
+      )?.trim();
+
+      if (!visibleLyrics) {
+          return;
+      }
+
+      const notificationKey = `${hydratedTrack.id}:${autoRomanizeLyrics ? 'romanized' : 'original'}:${visibleLyrics}`;
+      if (notificationKey === lyricsNotificationKeyRef.current) {
+          return;
+      }
+
+      lyricsNotificationKeyRef.current = notificationKey;
+      void showLyricsNotification(hydratedTrack, { autoRomanize: autoRomanizeLyrics });
+  }, [
+      lyricsNotifications,
+      currentTrack?.id,
+      currentTrack?.lyrics,
+      currentTrack?.romanizedLyrics,
+      autoRomanizeLyrics
+  ]);
 
   // Reset sort when view changes
   useEffect(() => {
@@ -1392,6 +1453,7 @@ const App: React.FC = () => {
             highPerformanceMode={highPerformanceMode} setHighPerformanceMode={(s) => { storageService.setHighPerformanceMode(s); setHighPerformanceMode(s); }}
             disableGlow={disableGlow} setDisableGlow={(s) => { storageService.setDisableGlow(s); setDisableGlow(s); }}
             autoRomanizeLyrics={autoRomanizeLyrics} setAutoRomanizeLyrics={(s) => { storageService.setAutoRomanizeLyrics(s); setAutoRomanizeLyrics(s); }}
+            lyricsNotifications={lyricsNotifications} setLyricsNotifications={handleSetLyricsNotifications}
             updateTitle={updateTitle} setUpdateTitle={(s) => { storageService.setUpdateTitle(s); setUpdateTitle(s); }}
             showVisualizer={showVisualizer} setShowVisualizer={(s) => { storageService.setShowVisualizer(s); setShowVisualizer(s); }}
         />

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Check, Wifi, Palette, Sliders, Timer, ListCollapse, EyeOff, Square, Monitor, Gauge, Droplets, Type, Keyboard, Activity, X, Languages } from 'lucide-react';
+import { Check, Wifi, Palette, Sliders, Timer, ListCollapse, EyeOff, Square, Monitor, Gauge, Droplets, Type, Keyboard, Activity, X, Languages, Bell } from 'lucide-react';
 import { Button } from './Button';
 import { AudioQuality } from '../types';
 import { ShortcutsModal } from './ShortcutsModal';
@@ -44,6 +44,9 @@ interface SettingsModalProps {
     autoRomanizeLyrics: boolean;
     setAutoRomanizeLyrics: (v: boolean) => void;
 
+    lyricsNotifications: boolean;
+    setLyricsNotifications: (v: boolean) => void;
+
     updateTitle: boolean;
     setUpdateTitle: (v: boolean) => void;
 
@@ -64,6 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     highPerformanceMode, setHighPerformanceMode,
     disableGlow, setDisableGlow,
     autoRomanizeLyrics, setAutoRomanizeLyrics,
+    lyricsNotifications, setLyricsNotifications,
     updateTitle, setUpdateTitle,
     showVisualizer, setShowVisualizer
 }) => {
@@ -207,6 +211,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 active={autoRomanizeLyrics}
                                 onToggle={() => setAutoRomanizeLyrics(!autoRomanizeLyrics)}
                                 colorClass="text-cyan-400"
+                            />
+                            <ToggleItem 
+                                label="Lyrics Notifications" 
+                                desc="Send a system notification with the current track's lyrics when available"
+                                icon={Bell}
+                                active={lyricsNotifications}
+                                onToggle={() => setLyricsNotifications(!lyricsNotifications)}
+                                colorClass="text-amber-400"
                             />
                         </div>
 

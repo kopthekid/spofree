@@ -110,6 +110,7 @@ const getStorage = (): LocalStorageData => {
     highPerformanceMode: false,
     disableGlow: false,
     autoRomanizeLyrics: false,
+    lyricsNotifications: false,
     updateTitle: true
   };
   
@@ -336,6 +337,16 @@ export const storageService = {
   setAutoRomanizeLyrics: (enabled: boolean) => {
     const data = getStorage();
     data.autoRomanizeLyrics = enabled;
+    setStorage(data);
+  },
+
+  getLyricsNotifications: (): boolean => {
+    return getStorage().lyricsNotifications;
+  },
+
+  setLyricsNotifications: (enabled: boolean) => {
+    const data = getStorage();
+    data.lyricsNotifications = enabled;
     setStorage(data);
   },
 

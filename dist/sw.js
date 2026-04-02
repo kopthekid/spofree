@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spofree-shell-v9';
+const CACHE_NAME = 'spofree-shell-v10';
 const BASE_URL = new URL('./', self.location.href);
 const APP_ROOT = BASE_URL.pathname;
 const APP_SHELL = [
@@ -79,4 +79,22 @@ self.addEventListener('fetch', event => {
       ))
     );
   }
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+
+  const targetUrl = new URL(event.notification.data?.url || APP_ROOT, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        if (client.url.startsWith(targetUrl) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+
+      return self.clients.openWindow(targetUrl);
+    })
+  );
 });

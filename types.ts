@@ -121,5 +121,6 @@ export interface LocalStorageData {
   highPerformanceMode: boolean;
   disableGlow: boolean;
   autoRomanizeLyrics: boolean;
+  lyricsNotifications: boolean;
   updateTitle: boolean;
 }
