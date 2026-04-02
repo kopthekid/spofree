@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spofree-shell-v6';
+const CACHE_NAME = 'spofree-shell-v7';
 const BASE_URL = new URL('./', self.location.href);
 const APP_ROOT = BASE_URL.pathname;
 const APP_SHELL = [

@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Check, Wifi, Palette, Sliders, Timer, ListCollapse, EyeOff, Square, Monitor, Gauge, Droplets, Type, Keyboard, Activity, X } from 'lucide-react';
+import { Check, Wifi, Palette, Sliders, Timer, ListCollapse, EyeOff, Square, Monitor, Gauge, Droplets, Type, Keyboard, Activity, X, Languages } from 'lucide-react';
 import { Button } from './Button';
 import { AudioQuality } from '../types';
 import { ShortcutsModal } from './ShortcutsModal';
