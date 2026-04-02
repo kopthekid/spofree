@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spofree-shell-v8';
+const CACHE_NAME = 'spofree-shell-v9';
 const BASE_URL = new URL('./', self.location.href);
 const APP_ROOT = BASE_URL.pathname;
 const APP_SHELL = [
@@ -54,7 +54,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (request.destination === 'script' || request.destination === 'style' || request.destination === 'image') {
+  if (url.origin === self.location.origin && (request.destination === 'script' || request.destination === 'style')) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, cloned));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  if (url.origin === self.location.origin && request.destination === 'image') {
     event.respondWith(
       caches.match(request).then(cached => (
         cached ||

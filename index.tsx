@@ -16,8 +16,20 @@ root.render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(error => {
-      console.error('Service worker registration failed:', error);
+    let refreshing = false;
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
     });
+
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, {
+      updateViaCache: 'none'
+    })
+      .then(registration => registration.update())
+      .catch(error => {
+        console.error('Service worker registration failed:', error);
+      });
   });
 }
