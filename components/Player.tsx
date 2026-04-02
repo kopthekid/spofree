@@ -37,6 +37,7 @@ interface PlayerProps {
   showLyrics: boolean;
   toggleLyrics: () => void;
   onEditLyrics: (track: Track) => void;
+  lyricsFetchState: 'idle' | 'loading' | 'not_found' | 'error';
 
   // Queue Data
   queue: Track[];
@@ -55,7 +56,7 @@ export const Player: React.FC<PlayerProps> = ({
     isShuffling, repeatMode, onToggleShuffle, onToggleRepeat,
     onArtistClick, onQualityClick, onDownload,
     accentColor, showVisualizer, showStats, sleepTimer, setSleepTimer, highPerformanceMode, disableGlow,
-    showQueue, toggleQueue, showLyrics, toggleLyrics, onEditLyrics,
+    showQueue, toggleQueue, showLyrics, toggleLyrics, onEditLyrics, lyricsFetchState,
     queue, onPlayTrack
 }) => {
   const [progress, setProgress] = useState(0);
@@ -228,6 +229,7 @@ export const Player: React.FC<PlayerProps> = ({
                         track={currentTrack}
                         accentColor={accentColor}
                         onEditLyrics={onEditLyrics}
+                        fetchState={lyricsFetchState}
                         variant="fullscreen"
                     />
                 </div>

@@ -15,6 +15,7 @@ import {
     searchAll, getStreamUrl, getCurrentApiUrl, 
     getAlbumTracks, getArtistTopTracks, getPlaylistTracks, getArtistAlbums, downloadTrackBlob, downloadBlobWithProgress 
 } from './services/hifiService';
+import { fetchLyricsForTrack } from './services/lyricsService';
 import { storageService } from './services/storageService';
 import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Download, Archive, Loader2, Plus, Disc, Mic2, ListMusic, ArrowDownUp, LayoutGrid, List } from 'lucide-react';
 import { Button } from './components/Button';
@@ -134,6 +135,9 @@ const App: React.FC = () => {
   // Scroll Detection
   const [isScrolled, setIsScrolled] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const playRequestIdRef = useRef(0);
+  const playAbortControllerRef = useRef<AbortController | null>(null);
+  const lyricsAbortControllerRef = useRef<AbortController | null>(null);
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
@@ -142,6 +146,7 @@ const App: React.FC = () => {
   const [settingsStartTab, setSettingsStartTab] = useState<SettingsTab>('QUALITY');
   const [trackToAdd, setTrackToAdd] = useState<Track | null>(null); 
   const [lyricsEditorTrack, setLyricsEditorTrack] = useState<Track | null>(null);
+  const [lyricsFetchState, setLyricsFetchState] = useState<'idle' | 'loading' | 'not_found' | 'error'>('idle');
 
   const updateConnectionStatus = () => setConnectedInstance(getCurrentApiUrl());
 
@@ -288,7 +293,63 @@ const App: React.FC = () => {
     refreshLibrary();
     updateConnectionStatus();
     fetchHomeContent();
+
+    return () => {
+      playAbortControllerRef.current?.abort();
+      lyricsAbortControllerRef.current?.abort();
+    };
   }, []);
+
+  useEffect(() => {
+      if (!currentTrack) {
+          lyricsAbortControllerRef.current?.abort();
+          setLyricsFetchState('idle');
+          return;
+      }
+
+      if (currentTrack.lyrics?.trim()) {
+          setLyricsFetchState('idle');
+          return;
+      }
+
+      if (storageService.getCustomLyrics(currentTrack.id) || storageService.getFetchedLyrics(currentTrack.id)) {
+          syncHydratedTracks(currentTrack.id);
+          setLyricsFetchState('idle');
+          return;
+      }
+
+      lyricsAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      lyricsAbortControllerRef.current = controller;
+      setLyricsFetchState('loading');
+
+      fetchLyricsForTrack(currentTrack, controller.signal)
+          .then(result => {
+              if (controller.signal.aborted) return;
+
+              if (!result) {
+                  setLyricsFetchState('not_found');
+                  return;
+              }
+
+              storageService.saveFetchedLyrics(currentTrack.id, {
+                  lyrics: result.lyrics,
+                  syncedLyrics: result.syncedLyrics
+              });
+              refreshLibrary();
+              syncHydratedTracks(currentTrack.id);
+              setLyricsFetchState('idle');
+          })
+          .catch(error => {
+              if (controller.signal.aborted) return;
+              console.error('Lyrics fetch failed:', error);
+              setLyricsFetchState('error');
+          });
+
+      return () => {
+          controller.abort();
+      };
+  }, [currentTrack?.id]);
 
   // Reset sort when view changes
   useEffect(() => {
@@ -377,10 +438,20 @@ const App: React.FC = () => {
   };
 
   const playTrack = async (track: Track, context: Track[] = []) => {
-    if (currentTrack?.id === track.id) {
+    if (currentTrack?.id === track.id && currentTrack.streamUrl) {
       setIsPlaying(!isPlaying);
       return;
     }
+
+    if (currentTrack?.id === track.id && !currentTrack.streamUrl) {
+      return;
+    }
+
+    const requestId = ++playRequestIdRef.current;
+    playAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    playAbortControllerRef.current = abortController;
+
     const hydratedTrack = storageService.hydrateTrack(track);
     const hydratedContext = storageService.hydrateTracks(context);
     setOriginalQueue(hydratedContext);
@@ -398,15 +469,23 @@ const App: React.FC = () => {
     refreshLibrary();
 
     try {
-        const streamUrl = await getStreamUrl(track.id);
+        const streamUrl = await getStreamUrl(track.id, { signal: abortController.signal });
+        if (requestId !== playRequestIdRef.current) return;
         updateConnectionStatus();
         setCurrentTrack({ ...hydratedTrack, streamUrl });
         setIsPlaying(true);
     } catch (err: any) {
+        if (err?.name === 'AbortError' || requestId !== playRequestIdRef.current) {
+            return;
+        }
         console.error("Play error:", err);
         setError("Could not resolve stream. Trying another server...");
         updateConnectionStatus();
         setIsPlaying(false);
+    } finally {
+        if (requestId === playRequestIdRef.current) {
+            playAbortControllerRef.current = null;
+        }
     }
   };
 
@@ -1166,6 +1245,7 @@ const App: React.FC = () => {
                         onSaveQueue={handleSaveQueueAsPlaylist}
                         accentColor={accentColor}
                         onEditLyrics={handleOpenLyricsEditor}
+                        lyricsFetchState={lyricsFetchState}
                     />
                 </div>
             )}
@@ -1197,6 +1277,7 @@ const App: React.FC = () => {
         showLyrics={rightSidebarMode === 'LYRICS'}
         toggleLyrics={() => setRightSidebarMode(mode => mode === 'LYRICS' ? null : 'LYRICS')}
         onEditLyrics={handleOpenLyricsEditor}
+        lyricsFetchState={lyricsFetchState}
         queue={queue}
         onPlayTrack={(t) => playTrack(t, queue)}
       />

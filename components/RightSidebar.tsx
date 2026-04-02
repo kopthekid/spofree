@@ -13,10 +13,11 @@ interface RightSidebarProps {
     onSaveQueue: () => void;
     accentColor: string;
     onEditLyrics: (track: Track) => void;
+    lyricsFetchState: 'idle' | 'loading' | 'not_found' | 'error';
 }
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
-    mode, queue, currentTrack, onPlay, onClose, onClearQueue, onSaveQueue, accentColor, onEditLyrics
+    mode, queue, currentTrack, onPlay, onClose, onClearQueue, onSaveQueue, accentColor, onEditLyrics, lyricsFetchState
 }) => {
     const currentIndex = currentTrack ? queue.findIndex(t => t.id === currentTrack.id) : -1;
     const nextTracks = currentIndex !== -1 ? queue.slice(currentIndex + 1) : queue;
@@ -37,6 +38,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         track={currentTrack}
                         accentColor={accentColor}
                         onEditLyrics={onEditLyrics}
+                        fetchState={lyricsFetchState}
                     />
                 </div>
             </div>

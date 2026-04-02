@@ -26,11 +26,19 @@ export interface Playlist {
 }
 
 export type LyricsLanguage = 'KOREAN' | 'JAPANESE' | 'CHINESE' | 'OTHER';
+export type LyricsSource = 'CUSTOM' | 'LRCLIB';
 
 export interface CustomLyrics {
   lyrics: string;
   romanizedLyrics?: string;
   lyricsLanguage?: LyricsLanguage;
+  updatedAt: number;
+}
+
+export interface FetchedLyrics {
+  lyrics: string;
+  syncedLyrics?: string;
+  source: 'LRCLIB';
   updatedAt: number;
 }
 
@@ -43,8 +51,10 @@ export interface Track {
   streamUrl?: string; // Direct URL if available
   quality?: 'LOW' | 'HIGH' | 'LOSSLESS' | 'HI_RES';
   lyrics?: string; // Synced lyrics or plain text
+  syncedLyrics?: string;
   romanizedLyrics?: string;
   lyricsLanguage?: LyricsLanguage;
+  lyricsSource?: LyricsSource;
 }
 
 export type RepeatMode = 'OFF' | 'ALL' | 'ONE';
@@ -90,6 +100,7 @@ export interface LocalStorageData {
   savedAlbums: Album[];
   followedArtists: Artist[];
   customLyrics: Record<string, CustomLyrics>;
+  fetchedLyrics: Record<string, FetchedLyrics>;
   searchHistory: string[];
   audioQuality: AudioQuality;
   recentlyPlayed: RecentlyPlayedItem[];

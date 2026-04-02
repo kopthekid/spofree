@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Languages, Pencil } from 'lucide-react';
+import { Languages, Pencil, Loader2 } from 'lucide-react';
 import { Track } from '../types';
 
 type LyricsDisplayMode = 'ORIGINAL' | 'DUAL' | 'ROMANIZED';
@@ -8,6 +8,7 @@ interface LyricsPanelProps {
   track: Track | null;
   accentColor: string;
   onEditLyrics?: (track: Track) => void;
+  fetchState?: 'idle' | 'loading' | 'not_found' | 'error';
   variant?: 'sidebar' | 'fullscreen';
 }
 
@@ -28,6 +29,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
   track,
   accentColor,
   onEditLyrics,
+  fetchState = 'idle',
   variant = 'sidebar'
 }) => {
   const [displayMode, setDisplayMode] = useState<LyricsDisplayMode>('ORIGINAL');
@@ -101,6 +103,11 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
                 {languageLabel[track.lyricsLanguage] || 'Lyrics'}
               </span>
             )}
+            {track.lyricsSource && (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/60">
+                {track.lyricsSource === 'CUSTOM' ? 'Custom Lyrics' : 'LRCLIB'}
+              </span>
+            )}
             {onEditLyrics && (
               <button
                 onClick={() => onEditLyrics(track)}
@@ -115,10 +122,38 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
 
         {!hasLyrics ? (
           <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 px-6 py-10 text-center text-white/60">
-            <p className="text-xl font-bold text-white">(Lyrics not available yet)</p>
-            <p className="mt-4 leading-relaxed">
-              Add your own lyrics for this track and optionally include romanization for Korean, Japanese, or Chinese.
-            </p>
+            {fetchState === 'loading' ? (
+              <>
+                <p className="text-xl font-bold text-white inline-flex items-center gap-3">
+                  <Loader2 size={18} className="animate-spin" />
+                  Fetching lyrics from LRCLIB
+                </p>
+                <p className="mt-4 leading-relaxed">
+                  Looking up automatic lyrics for this track.
+                </p>
+              </>
+            ) : fetchState === 'error' ? (
+              <>
+                <p className="text-xl font-bold text-white">(Couldn&apos;t load LRCLIB lyrics)</p>
+                <p className="mt-4 leading-relaxed">
+                  You can still add your own lyrics and optional romanization for Korean, Japanese, or Chinese.
+                </p>
+              </>
+            ) : fetchState === 'not_found' ? (
+              <>
+                <p className="text-xl font-bold text-white">(No automatic lyrics found)</p>
+                <p className="mt-4 leading-relaxed">
+                  LRCLIB didn&apos;t have a match for this track. You can add your own lyrics and optional romanization.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xl font-bold text-white">(Lyrics not available yet)</p>
+                <p className="mt-4 leading-relaxed">
+                  Add your own lyrics for this track and optionally include romanization for Korean, Japanese, or Chinese.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>

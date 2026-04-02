@@ -13,6 +13,37 @@ const rotateInstance = () => {
   console.warn(`[Failover] Switching to ${API_INSTANCES[currentInstanceIndex]}`);
 };
 
+const createAbortError = () => new DOMException('The operation was aborted.', 'AbortError');
+
+const fetchFromCurrentInstance = async (
+  endpoint: string,
+  options?: RequestInit,
+  timeoutMs: number = 10000
+): Promise<Response> => {
+  const baseUrl = API_INSTANCES[currentInstanceIndex];
+  const url = `${baseUrl.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = options?.signal;
+
+  const abortFromExternalSignal = () => controller.abort();
+
+  if (externalSignal?.aborted) {
+    clearTimeout(timeoutId);
+    throw createAbortError();
+  }
+
+  externalSignal?.addEventListener('abort', abortFromExternalSignal, { once: true });
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', abortFromExternalSignal);
+  }
+};
+
 const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeoutMs: number = 10000): Promise<Response> => {
   const maxRetries = API_INSTANCES.length;
   let attempts = 0;
@@ -24,10 +55,20 @@ const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeou
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const externalSignal = options?.signal;
+    const abortFromExternalSignal = () => controller.abort();
+
+    if (externalSignal?.aborted) {
+      clearTimeout(timeoutId);
+      throw createAbortError();
+    }
+
+    externalSignal?.addEventListener('abort', abortFromExternalSignal, { once: true });
 
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', abortFromExternalSignal);
 
       if (!response.ok) {
         lastResponse = response;
@@ -38,6 +79,10 @@ const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeou
       return response;
     } catch (err: any) {
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener('abort', abortFromExternalSignal);
+      if (err?.name === 'AbortError') {
+        throw err;
+      }
       rotateInstance(); 
       attempts++;
     }
@@ -247,21 +292,29 @@ export const searchAll = async (query: string): Promise<SearchResult> => {
   }
 };
 
-export const getStreamUrl = async (trackId: string | number): Promise<string> => {
+export const getStreamUrl = async (
+  trackId: string | number,
+  options?: { signal?: AbortSignal }
+): Promise<string> => {
   // Get preferred quality from storage
   const preferredQuality = storageService.getQuality();
   const qualities = getQualityPriority(preferredQuality);
 
-  const TIMEOUT = 15000; 
+  const TIMEOUT = 7000; 
 
   for (const quality of qualities) {
-      let instanceAttempts = 0;
-
-      while (instanceAttempts < API_INSTANCES.length) {
+      for (let instanceAttempts = 0; instanceAttempts < API_INSTANCES.length; instanceAttempts++) {
           try {
-              const response = await fetchWithFailover(`/track/?id=${trackId}&quality=${quality}`, {}, TIMEOUT);
+              if (options?.signal?.aborted) throw createAbortError();
+
+              const response = await fetchFromCurrentInstance(
+                `/track/?id=${trackId}&quality=${quality}`,
+                { signal: options?.signal },
+                TIMEOUT
+              );
+
               if (!response.ok) {
-                  instanceAttempts++;
+                  rotateInstance();
                   continue;
               }
 
@@ -297,11 +350,13 @@ export const getStreamUrl = async (trackId: string | number): Promise<string> =>
                   }
               }
           } catch (e) {
+              if ((e as any)?.name === 'AbortError') {
+                  throw e;
+              }
               // Move to the next instance below.
           }
 
           rotateInstance();
-          instanceAttempts++;
       }
   }
 

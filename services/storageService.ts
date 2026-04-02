@@ -1,44 +1,72 @@
 
 
-import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist, CustomLyrics } from '../types';
+import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist, CustomLyrics, FetchedLyrics } from '../types';
 
 const STORAGE_KEY = 'spofreefy_data_v1';
 
 const toTrackKey = (trackId: string | number) => String(trackId);
 
-const applyLyricsToTrack = (track: Track, customLyrics?: CustomLyrics): Track => {
-  if (!customLyrics) return track;
-
-  return {
-    ...track,
-    lyrics: customLyrics.lyrics,
-    romanizedLyrics: customLyrics.romanizedLyrics,
-    lyricsLanguage: customLyrics.lyricsLanguage
-  };
+const stripLyricsFromTrack = (track: Track): Track => {
+  const { lyrics, syncedLyrics, romanizedLyrics, lyricsLanguage, lyricsSource, ...rest } = track;
+  return rest as Track;
 };
 
-const stripLyricsFromTrack = (track: Track): Track => {
-  const { lyrics, romanizedLyrics, lyricsLanguage, ...rest } = track;
-  return rest as Track;
+const applyLyricsToTrack = (
+  track: Track,
+  fetchedLyrics?: FetchedLyrics,
+  customLyrics?: CustomLyrics
+): Track => {
+  let hydratedTrack: Track = stripLyricsFromTrack(track);
+
+  if (fetchedLyrics) {
+    hydratedTrack = {
+      ...hydratedTrack,
+      lyrics: fetchedLyrics.lyrics,
+      syncedLyrics: fetchedLyrics.syncedLyrics,
+      lyricsSource: fetchedLyrics.source
+    };
+  }
+
+  if (customLyrics) {
+    hydratedTrack = {
+      ...hydratedTrack,
+      lyrics: customLyrics.lyrics,
+      romanizedLyrics: customLyrics.romanizedLyrics,
+      lyricsLanguage: customLyrics.lyricsLanguage,
+      lyricsSource: 'CUSTOM'
+    };
+  }
+
+  return hydratedTrack;
 };
 
 const applyLyricsToPlaylist = (
   playlist: Playlist,
+  fetchedLyricsMap: Record<string, FetchedLyrics>,
   customLyricsMap: Record<string, CustomLyrics>
 ): Playlist => ({
   ...playlist,
-  tracks: playlist.tracks?.map(track => applyLyricsToTrack(track, customLyricsMap[toTrackKey(track.id)])) || []
+  tracks: playlist.tracks?.map(track => applyLyricsToTrack(
+    track,
+    fetchedLyricsMap[toTrackKey(track.id)],
+    customLyricsMap[toTrackKey(track.id)]
+  )) || []
 });
 
 const applyLyricsToRecentItem = (
   item: RecentlyPlayedItem,
+  fetchedLyricsMap: Record<string, FetchedLyrics>,
   customLyricsMap: Record<string, CustomLyrics>
 ): RecentlyPlayedItem => {
   if (item.type !== 'TRACK') return item;
 
   return {
     ...item,
-    data: applyLyricsToTrack(item.data as Track, customLyricsMap[toTrackKey((item.data as Track).id)])
+    data: applyLyricsToTrack(
+      item.data as Track,
+      fetchedLyricsMap[toTrackKey((item.data as Track).id)],
+      customLyricsMap[toTrackKey((item.data as Track).id)]
+    )
   };
 };
 
@@ -50,6 +78,7 @@ const getStorage = (): LocalStorageData => {
     savedAlbums: [],
     followedArtists: [],
     customLyrics: {},
+    fetchedLyrics: {},
     searchHistory: [],
     audioQuality: 'LOSSLESS',
     recentlyPlayed: [],
@@ -85,13 +114,40 @@ export const storageService = {
     return getStorage().customLyrics[toTrackKey(trackId)] || null;
   },
 
+  getFetchedLyrics: (trackId: string | number): FetchedLyrics | null => {
+    return getStorage().fetchedLyrics[toTrackKey(trackId)] || null;
+  },
+
   hydrateTrack: (track: Track): Track => {
-    return applyLyricsToTrack(track, getStorage().customLyrics[toTrackKey(track.id)]);
+    const data = getStorage();
+    return applyLyricsToTrack(
+      track,
+      data.fetchedLyrics[toTrackKey(track.id)],
+      data.customLyrics[toTrackKey(track.id)]
+    );
   },
 
   hydrateTracks: (tracks: Track[]): Track[] => {
-    const customLyricsMap = getStorage().customLyrics;
-    return tracks.map(track => applyLyricsToTrack(track, customLyricsMap[toTrackKey(track.id)]));
+    const data = getStorage();
+    return tracks.map(track => applyLyricsToTrack(
+      track,
+      data.fetchedLyrics[toTrackKey(track.id)],
+      data.customLyrics[toTrackKey(track.id)]
+    ));
+  },
+
+  saveFetchedLyrics: (trackId: string | number, payload: { lyrics: string; syncedLyrics?: string }): FetchedLyrics => {
+    const data = getStorage();
+    const saved: FetchedLyrics = {
+      lyrics: payload.lyrics.trim(),
+      syncedLyrics: payload.syncedLyrics?.trim() || undefined,
+      source: 'LRCLIB',
+      updatedAt: Date.now()
+    };
+
+    data.fetchedLyrics[toTrackKey(trackId)] = saved;
+    setStorage(data);
+    return saved;
   },
 
   saveCustomLyrics: (
@@ -245,12 +301,20 @@ export const storageService = {
   // --- Liked Songs ---
   getLikedSongs: (): Track[] => {
     const data = getStorage();
-    return data.likedSongs.map(track => applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]));
+    return data.likedSongs.map(track => applyLyricsToTrack(
+      track,
+      data.fetchedLyrics[toTrackKey(track.id)],
+      data.customLyrics[toTrackKey(track.id)]
+    ));
   },
   
   toggleLikeSong: (track: Track): boolean => {
     const data = getStorage();
-    const hydratedTrack = applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]);
+    const hydratedTrack = applyLyricsToTrack(
+      track,
+      data.fetchedLyrics[toTrackKey(track.id)],
+      data.customLyrics[toTrackKey(track.id)]
+    );
     const exists = data.likedSongs.some(t => t.id === track.id);
     
     if (exists) {
@@ -311,7 +375,7 @@ export const storageService = {
   // --- Playlists ---
   getPlaylists: (): Playlist[] => {
     const data = getStorage();
-    return data.playlists.map(playlist => applyLyricsToPlaylist(playlist, data.customLyrics));
+    return data.playlists.map(playlist => applyLyricsToPlaylist(playlist, data.fetchedLyrics, data.customLyrics));
   },
 
   savePlaylist: (playlist: Playlist): boolean => {
@@ -361,7 +425,11 @@ export const storageService = {
       const data = getStorage();
       const playlist = data.playlists.find(p => p.uuid === uuid);
       if (playlist) {
-          playlist.tracks = tracks.map(track => applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]));
+          playlist.tracks = tracks.map(track => applyLyricsToTrack(
+            track,
+            data.fetchedLyrics[toTrackKey(track.id)],
+            data.customLyrics[toTrackKey(track.id)]
+          ));
           // Update cover if needed and not custom
           if (playlist.image.includes('placeholder') && tracks.length > 0) {
                playlist.image = tracks[0].album.cover;
@@ -389,7 +457,11 @@ export const storageService = {
   addTrackToPlaylist: (playlistUuid: string, track: Track) => {
     const data = getStorage();
     const playlist = data.playlists.find(p => p.uuid === playlistUuid);
-    const hydratedTrack = applyLyricsToTrack(track, data.customLyrics[toTrackKey(track.id)]);
+    const hydratedTrack = applyLyricsToTrack(
+      track,
+      data.fetchedLyrics[toTrackKey(track.id)],
+      data.customLyrics[toTrackKey(track.id)]
+    );
     if (playlist) {
       if (!playlist.tracks) playlist.tracks = [];
       if (!playlist.tracks.some(t => t.id === track.id)) {
@@ -417,13 +489,20 @@ export const storageService = {
   // --- Recently Played ---
   getRecentlyPlayed: (): RecentlyPlayedItem[] => {
       const data = getStorage();
-      return data.recentlyPlayed.map(item => applyLyricsToRecentItem(item, data.customLyrics));
+      return data.recentlyPlayed.map(item => applyLyricsToRecentItem(item, data.fetchedLyrics, data.customLyrics));
   },
 
   addToRecentlyPlayed: (item: RecentlyPlayedItem) => {
       const data = getStorage();
       const hydratedItem = item.type === 'TRACK'
-        ? { ...item, data: applyLyricsToTrack(item.data as Track, data.customLyrics[toTrackKey((item.data as Track).id)]) }
+        ? {
+            ...item,
+            data: applyLyricsToTrack(
+              item.data as Track,
+              data.fetchedLyrics[toTrackKey((item.data as Track).id)],
+              data.customLyrics[toTrackKey((item.data as Track).id)]
+            )
+          }
         : item;
       const filtered = data.recentlyPlayed.filter(i => {
           const existingId = (i.data as any).id || (i.data as any).uuid;
