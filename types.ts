@@ -42,6 +42,12 @@ export interface FetchedLyrics {
   updatedAt: number;
 }
 
+export interface GeneratedRomanization {
+  lyrics: string;
+  romanizedLyrics: string;
+  updatedAt: number;
+}
+
 export interface Track {
   id: number | string;
   title: string;
@@ -101,6 +107,7 @@ export interface LocalStorageData {
   followedArtists: Artist[];
   customLyrics: Record<string, CustomLyrics>;
   fetchedLyrics: Record<string, FetchedLyrics>;
+  generatedRomanizations: Record<string, GeneratedRomanization>;
   searchHistory: string[];
   audioQuality: AudioQuality;
   recentlyPlayed: RecentlyPlayedItem[];

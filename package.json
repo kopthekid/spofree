@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "jszip": "3.10.1",
+    "kroman": "^1.0.1",
+    "kuroshiro": "^1.2.0",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0",
     "lucide-react": "^0.556.0",
+    "pinyin-pro": "^3.28.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },

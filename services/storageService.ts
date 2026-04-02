@@ -1,6 +1,6 @@
 
 
-import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist, CustomLyrics, FetchedLyrics } from '../types';
+import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist, CustomLyrics, FetchedLyrics, GeneratedRomanization } from '../types';
 
 const STORAGE_KEY = 'spofreefy_data_v1';
 
@@ -14,7 +14,8 @@ const stripLyricsFromTrack = (track: Track): Track => {
 const applyLyricsToTrack = (
   track: Track,
   fetchedLyrics?: FetchedLyrics,
-  customLyrics?: CustomLyrics
+  customLyrics?: CustomLyrics,
+  generatedRomanization?: GeneratedRomanization
 ): Track => {
   let hydratedTrack: Track = stripLyricsFromTrack(track);
 
@@ -37,26 +38,41 @@ const applyLyricsToTrack = (
     };
   }
 
+  if (
+    generatedRomanization &&
+    hydratedTrack.lyrics &&
+    generatedRomanization.lyrics === hydratedTrack.lyrics &&
+    !hydratedTrack.romanizedLyrics
+  ) {
+    hydratedTrack = {
+      ...hydratedTrack,
+      romanizedLyrics: generatedRomanization.romanizedLyrics
+    };
+  }
+
   return hydratedTrack;
 };
 
 const applyLyricsToPlaylist = (
   playlist: Playlist,
   fetchedLyricsMap: Record<string, FetchedLyrics>,
-  customLyricsMap: Record<string, CustomLyrics>
+  customLyricsMap: Record<string, CustomLyrics>,
+  generatedRomanizationsMap: Record<string, GeneratedRomanization>
 ): Playlist => ({
   ...playlist,
   tracks: playlist.tracks?.map(track => applyLyricsToTrack(
     track,
     fetchedLyricsMap[toTrackKey(track.id)],
-    customLyricsMap[toTrackKey(track.id)]
+    customLyricsMap[toTrackKey(track.id)],
+    generatedRomanizationsMap[toTrackKey(track.id)]
   )) || []
 });
 
 const applyLyricsToRecentItem = (
   item: RecentlyPlayedItem,
   fetchedLyricsMap: Record<string, FetchedLyrics>,
-  customLyricsMap: Record<string, CustomLyrics>
+  customLyricsMap: Record<string, CustomLyrics>,
+  generatedRomanizationsMap: Record<string, GeneratedRomanization>
 ): RecentlyPlayedItem => {
   if (item.type !== 'TRACK') return item;
 
@@ -65,7 +81,8 @@ const applyLyricsToRecentItem = (
     data: applyLyricsToTrack(
       item.data as Track,
       fetchedLyricsMap[toTrackKey((item.data as Track).id)],
-      customLyricsMap[toTrackKey((item.data as Track).id)]
+      customLyricsMap[toTrackKey((item.data as Track).id)],
+      generatedRomanizationsMap[toTrackKey((item.data as Track).id)]
     )
   };
 };
@@ -79,6 +96,7 @@ const getStorage = (): LocalStorageData => {
     followedArtists: [],
     customLyrics: {},
     fetchedLyrics: {},
+    generatedRomanizations: {},
     searchHistory: [],
     audioQuality: 'LOSSLESS',
     recentlyPlayed: [],
@@ -119,12 +137,17 @@ export const storageService = {
     return getStorage().fetchedLyrics[toTrackKey(trackId)] || null;
   },
 
+  getGeneratedRomanization: (trackId: string | number): GeneratedRomanization | null => {
+    return getStorage().generatedRomanizations[toTrackKey(trackId)] || null;
+  },
+
   hydrateTrack: (track: Track): Track => {
     const data = getStorage();
     return applyLyricsToTrack(
       track,
       data.fetchedLyrics[toTrackKey(track.id)],
-      data.customLyrics[toTrackKey(track.id)]
+      data.customLyrics[toTrackKey(track.id)],
+      data.generatedRomanizations[toTrackKey(track.id)]
     );
   },
 
@@ -133,7 +156,8 @@ export const storageService = {
     return tracks.map(track => applyLyricsToTrack(
       track,
       data.fetchedLyrics[toTrackKey(track.id)],
-      data.customLyrics[toTrackKey(track.id)]
+      data.customLyrics[toTrackKey(track.id)],
+      data.generatedRomanizations[toTrackKey(track.id)]
     ));
   },
 
@@ -147,6 +171,22 @@ export const storageService = {
     };
 
     data.fetchedLyrics[toTrackKey(trackId)] = saved;
+    setStorage(data);
+    return saved;
+  },
+
+  saveGeneratedRomanization: (
+    trackId: string | number,
+    payload: { lyrics: string; romanizedLyrics: string }
+  ): GeneratedRomanization => {
+    const data = getStorage();
+    const saved: GeneratedRomanization = {
+      lyrics: payload.lyrics.trim(),
+      romanizedLyrics: payload.romanizedLyrics.trim(),
+      updatedAt: Date.now()
+    };
+
+    data.generatedRomanizations[toTrackKey(trackId)] = saved;
     setStorage(data);
     return saved;
   },
@@ -315,7 +355,8 @@ export const storageService = {
     return data.likedSongs.map(track => applyLyricsToTrack(
       track,
       data.fetchedLyrics[toTrackKey(track.id)],
-      data.customLyrics[toTrackKey(track.id)]
+      data.customLyrics[toTrackKey(track.id)],
+      data.generatedRomanizations[toTrackKey(track.id)]
     ));
   },
   
@@ -324,7 +365,8 @@ export const storageService = {
     const hydratedTrack = applyLyricsToTrack(
       track,
       data.fetchedLyrics[toTrackKey(track.id)],
-      data.customLyrics[toTrackKey(track.id)]
+      data.customLyrics[toTrackKey(track.id)],
+      data.generatedRomanizations[toTrackKey(track.id)]
     );
     const exists = data.likedSongs.some(t => t.id === track.id);
     
@@ -386,7 +428,7 @@ export const storageService = {
   // --- Playlists ---
   getPlaylists: (): Playlist[] => {
     const data = getStorage();
-    return data.playlists.map(playlist => applyLyricsToPlaylist(playlist, data.fetchedLyrics, data.customLyrics));
+    return data.playlists.map(playlist => applyLyricsToPlaylist(playlist, data.fetchedLyrics, data.customLyrics, data.generatedRomanizations));
   },
 
   savePlaylist: (playlist: Playlist): boolean => {
@@ -439,7 +481,8 @@ export const storageService = {
           playlist.tracks = tracks.map(track => applyLyricsToTrack(
             track,
             data.fetchedLyrics[toTrackKey(track.id)],
-            data.customLyrics[toTrackKey(track.id)]
+            data.customLyrics[toTrackKey(track.id)],
+            data.generatedRomanizations[toTrackKey(track.id)]
           ));
           // Update cover if needed and not custom
           if (playlist.image.includes('placeholder') && tracks.length > 0) {
@@ -471,7 +514,8 @@ export const storageService = {
     const hydratedTrack = applyLyricsToTrack(
       track,
       data.fetchedLyrics[toTrackKey(track.id)],
-      data.customLyrics[toTrackKey(track.id)]
+      data.customLyrics[toTrackKey(track.id)],
+      data.generatedRomanizations[toTrackKey(track.id)]
     );
     if (playlist) {
       if (!playlist.tracks) playlist.tracks = [];
@@ -500,7 +544,7 @@ export const storageService = {
   // --- Recently Played ---
   getRecentlyPlayed: (): RecentlyPlayedItem[] => {
       const data = getStorage();
-      return data.recentlyPlayed.map(item => applyLyricsToRecentItem(item, data.fetchedLyrics, data.customLyrics));
+      return data.recentlyPlayed.map(item => applyLyricsToRecentItem(item, data.fetchedLyrics, data.customLyrics, data.generatedRomanizations));
   },
 
   addToRecentlyPlayed: (item: RecentlyPlayedItem) => {
@@ -511,7 +555,8 @@ export const storageService = {
             data: applyLyricsToTrack(
               item.data as Track,
               data.fetchedLyrics[toTrackKey((item.data as Track).id)],
-              data.customLyrics[toTrackKey((item.data as Track).id)]
+              data.customLyrics[toTrackKey((item.data as Track).id)],
+              data.generatedRomanizations[toTrackKey((item.data as Track).id)]
             )
           }
         : item;

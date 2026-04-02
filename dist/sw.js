@@ -1,10 +1,22 @@
-const CACHE_NAME = 'spofree-shell-v7';
+const CACHE_NAME = 'spofree-shell-v8';
 const BASE_URL = new URL('./', self.location.href);
 const APP_ROOT = BASE_URL.pathname;
 const APP_SHELL = [
   APP_ROOT,
   new URL('manifest.webmanifest', BASE_URL).pathname,
-  new URL('ios-logo.png', BASE_URL).pathname
+  new URL('ios-logo.png', BASE_URL).pathname,
+  new URL('kuromoji/dict/base.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/cc.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/check.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/tid.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/tid_map.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/tid_pos.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/unk.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/unk_char.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/unk_compat.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/unk_invoke.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/unk_map.dat.gz', BASE_URL).pathname,
+  new URL('kuromoji/dict/unk_pos.dat.gz', BASE_URL).pathname
 ];
 
 self.addEventListener('install', event => {

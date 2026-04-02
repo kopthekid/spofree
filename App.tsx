@@ -16,6 +16,7 @@ import {
     getAlbumTracks, getArtistTopTracks, getPlaylistTracks, getArtistAlbums, downloadTrackBlob, downloadBlobWithProgress 
 } from './services/hifiService';
 import { fetchLyricsForTrack } from './services/lyricsService';
+import { canAutoRomanize, generateRomanization } from './services/romanizationService';
 import { storageService } from './services/storageService';
 import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Download, Archive, Loader2, Plus, Disc, Mic2, ListMusic, ArrowDownUp, LayoutGrid, List } from 'lucide-react';
 import { Button } from './components/Button';
@@ -139,6 +140,7 @@ const App: React.FC = () => {
   const playRequestIdRef = useRef(0);
   const playAbortControllerRef = useRef<AbortController | null>(null);
   const lyricsAbortControllerRef = useRef<AbortController | null>(null);
+  const romanizationAbortControllerRef = useRef<AbortController | null>(null);
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
@@ -299,6 +301,7 @@ const App: React.FC = () => {
     return () => {
       playAbortControllerRef.current?.abort();
       lyricsAbortControllerRef.current?.abort();
+      romanizationAbortControllerRef.current?.abort();
     };
   }, []);
 
@@ -352,6 +355,53 @@ const App: React.FC = () => {
           controller.abort();
       };
   }, [currentTrack?.id]);
+
+  useEffect(() => {
+      if (!autoRomanizeLyrics || !currentTrack) {
+          romanizationAbortControllerRef.current?.abort();
+          return;
+      }
+
+      const hydratedTrack = storageService.hydrateTrack(currentTrack);
+      const lyrics = hydratedTrack.lyrics?.trim();
+
+      if (!lyrics) return;
+      if (hydratedTrack.romanizedLyrics?.trim()) return;
+      if (!canAutoRomanize(lyrics, hydratedTrack.lyricsLanguage)) return;
+
+      const cachedRomanization = storageService.getGeneratedRomanization(hydratedTrack.id);
+      if (cachedRomanization?.lyrics === lyrics && cachedRomanization.romanizedLyrics?.trim()) {
+          syncHydratedTracks(hydratedTrack.id);
+          return;
+      }
+
+      romanizationAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      romanizationAbortControllerRef.current = controller;
+
+      (async () => {
+          try {
+              const result = await generateRomanization(lyrics, hydratedTrack.lyricsLanguage);
+              if (controller.signal.aborted || !result) return;
+
+              storageService.saveGeneratedRomanization(hydratedTrack.id, {
+                  lyrics,
+                  romanizedLyrics: result.romanizedLyrics
+              });
+
+              refreshLibrary();
+              syncHydratedTracks(hydratedTrack.id);
+          } catch (error) {
+              if (!controller.signal.aborted) {
+                  console.error('Romanization failed:', error);
+              }
+          }
+      })();
+
+      return () => {
+          controller.abort();
+      };
+  }, [autoRomanizeLyrics, currentTrack?.id, currentTrack?.lyrics]);
 
   // Reset sort when view changes
   useEffect(() => {

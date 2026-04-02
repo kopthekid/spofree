@@ -40,7 +40,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
   useEffect(() => {
     const hydratedTrack = track ? storageService.hydrateTrack(track) : null;
     const hasRomanizedLyrics = Boolean(hydratedTrack?.romanizedLyrics?.trim());
-    setDisplayMode(autoRomanize && hasRomanizedLyrics ? 'DUAL' : 'ORIGINAL');
+    setDisplayMode(autoRomanize && hasRomanizedLyrics ? 'ROMANIZED' : 'ORIGINAL');
   }, [track?.id, track?.romanizedLyrics, autoRomanize]);
 
   if (!track) {
@@ -150,6 +150,13 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
                 <p className="text-xl font-bold text-white">(No automatic lyrics found)</p>
                 <p className="mt-4 leading-relaxed">
                   LRCLIB didn&apos;t have a match for this track. You can add your own lyrics and optional romanization.
+                </p>
+              </>
+            ) : autoRomanize ? (
+              <>
+                <p className="text-xl font-bold text-white">(Romanization not available yet)</p>
+                <p className="mt-4 leading-relaxed">
+                  Original lyrics may be available, but romanized text has not been added for this track yet.
                 </p>
               </>
             ) : (
