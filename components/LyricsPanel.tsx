@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Languages, Pencil, Loader2 } from 'lucide-react';
 import { Track } from '../types';
+import { storageService } from '../services/storageService';
 
 type LyricsDisplayMode = 'ORIGINAL' | 'DUAL' | 'ROMANIZED';
 
@@ -9,6 +10,7 @@ interface LyricsPanelProps {
   accentColor: string;
   onEditLyrics?: (track: Track) => void;
   fetchState?: 'idle' | 'loading' | 'not_found' | 'error';
+  autoRomanize?: boolean;
   variant?: 'sidebar' | 'fullscreen';
 }
 
@@ -30,20 +32,24 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
   accentColor,
   onEditLyrics,
   fetchState = 'idle',
+  autoRomanize = false,
   variant = 'sidebar'
 }) => {
   const [displayMode, setDisplayMode] = useState<LyricsDisplayMode>('ORIGINAL');
 
   useEffect(() => {
-    setDisplayMode('ORIGINAL');
-  }, [track?.id]);
+    const hydratedTrack = track ? storageService.hydrateTrack(track) : null;
+    const hasRomanizedLyrics = Boolean(hydratedTrack?.romanizedLyrics?.trim());
+    setDisplayMode(autoRomanize && hasRomanizedLyrics ? 'DUAL' : 'ORIGINAL');
+  }, [track?.id, track?.romanizedLyrics, autoRomanize]);
 
   if (!track) {
     return <div className="text-[#b3b3b3]">Play a song to see lyrics</div>;
   }
 
-  const lyrics = track.lyrics?.trim() || '';
-  const romanizedLyrics = track.romanizedLyrics?.trim() || '';
+  const hydratedTrack = storageService.hydrateTrack(track);
+  const lyrics = hydratedTrack.lyrics?.trim() || '';
+  const romanizedLyrics = hydratedTrack.romanizedLyrics?.trim() || '';
   const hasLyrics = Boolean(lyrics);
   const hasRomanizedLyrics = Boolean(romanizedLyrics);
   const originalLines = splitLyrics(lyrics);
@@ -92,29 +98,29 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
       <div className={bodyClass}>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
-            <h1 className={`${titleClass} font-bold text-white`}>{track.title}</h1>
-            <h2 className={artistClass}>{track.artist.name}</h2>
+            <h1 className={`${titleClass} font-bold text-white`}>{hydratedTrack.title}</h1>
+            <h2 className={artistClass}>{hydratedTrack.artist.name}</h2>
           </div>
 
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            {track.lyricsLanguage && (
+            {hydratedTrack.lyricsLanguage && (
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/60">
                 <Languages size={12} />
-                {languageLabel[track.lyricsLanguage] || 'Lyrics'}
+                {languageLabel[hydratedTrack.lyricsLanguage] || 'Lyrics'}
               </span>
             )}
-            {track.lyricsSource && (
+            {hydratedTrack.lyricsSource && (
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/60">
-                {track.lyricsSource === 'CUSTOM' ? 'Custom Lyrics' : 'LRCLIB'}
+                {hydratedTrack.lyricsSource === 'CUSTOM' ? 'Custom Lyrics' : 'LRCLIB'}
               </span>
             )}
             {onEditLyrics && (
               <button
-                onClick={() => onEditLyrics(track)}
+                onClick={() => onEditLyrics(hydratedTrack)}
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <Pencil size={12} />
-                {hasLyrics ? 'Edit Lyrics' : 'Add Lyrics'}
+                {hasLyrics ? (hasRomanizedLyrics ? 'Edit Lyrics' : 'Add Romanization') : 'Add Lyrics'}
               </button>
             )}
           </div>

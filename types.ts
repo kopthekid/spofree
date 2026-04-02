@@ -113,5 +113,6 @@ export interface LocalStorageData {
   squareAvatars: boolean;
   highPerformanceMode: boolean;
   disableGlow: boolean;
+  autoRomanizeLyrics: boolean;
   updateTitle: boolean;
 }

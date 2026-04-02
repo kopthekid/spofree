@@ -91,6 +91,7 @@ const getStorage = (): LocalStorageData => {
     squareAvatars: false,
     highPerformanceMode: false,
     disableGlow: false,
+    autoRomanizeLyrics: false,
     updateTitle: true
   };
   
@@ -285,6 +286,16 @@ export const storageService = {
   setDisableGlow: (enabled: boolean) => {
     const data = getStorage();
     data.disableGlow = enabled;
+    setStorage(data);
+  },
+
+  getAutoRomanizeLyrics: (): boolean => {
+    return getStorage().autoRomanizeLyrics;
+  },
+
+  setAutoRomanizeLyrics: (enabled: boolean) => {
+    const data = getStorage();
+    data.autoRomanizeLyrics = enabled;
     setStorage(data);
   },
 

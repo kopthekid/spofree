@@ -114,6 +114,7 @@ const App: React.FC = () => {
   const [squareAvatars, setSquareAvatars] = useState(false);
   const [highPerformanceMode, setHighPerformanceMode] = useState(false);
   const [disableGlow, setDisableGlow] = useState(false);
+  const [autoRomanizeLyrics, setAutoRomanizeLyrics] = useState(false);
   const [updateTitle, setUpdateTitle] = useState(true);
   
   // UI State
@@ -169,6 +170,7 @@ const App: React.FC = () => {
       setSquareAvatars(storageService.getSquareAvatars());
       setHighPerformanceMode(storageService.getHighPerformanceMode());
       setDisableGlow(storageService.getDisableGlow());
+      setAutoRomanizeLyrics(storageService.getAutoRomanizeLyrics());
       setUpdateTitle(storageService.getUpdateTitle());
   };
 
@@ -1246,6 +1248,7 @@ const App: React.FC = () => {
                         accentColor={accentColor}
                         onEditLyrics={handleOpenLyricsEditor}
                         lyricsFetchState={lyricsFetchState}
+                        autoRomanizeLyrics={autoRomanizeLyrics}
                     />
                 </div>
             )}
@@ -1278,6 +1281,7 @@ const App: React.FC = () => {
         toggleLyrics={() => setRightSidebarMode(mode => mode === 'LYRICS' ? null : 'LYRICS')}
         onEditLyrics={handleOpenLyricsEditor}
         lyricsFetchState={lyricsFetchState}
+        autoRomanizeLyrics={autoRomanizeLyrics}
         queue={queue}
         onPlayTrack={(t) => playTrack(t, queue)}
       />
@@ -1337,6 +1341,7 @@ const App: React.FC = () => {
             sleepTimer={sleepTimer} setSleepTimer={setSleepTimer}
             highPerformanceMode={highPerformanceMode} setHighPerformanceMode={(s) => { storageService.setHighPerformanceMode(s); setHighPerformanceMode(s); }}
             disableGlow={disableGlow} setDisableGlow={(s) => { storageService.setDisableGlow(s); setDisableGlow(s); }}
+            autoRomanizeLyrics={autoRomanizeLyrics} setAutoRomanizeLyrics={(s) => { storageService.setAutoRomanizeLyrics(s); setAutoRomanizeLyrics(s); }}
             updateTitle={updateTitle} setUpdateTitle={(s) => { storageService.setUpdateTitle(s); setUpdateTitle(s); }}
             showVisualizer={showVisualizer} setShowVisualizer={(s) => { storageService.setShowVisualizer(s); setShowVisualizer(s); }}
         />

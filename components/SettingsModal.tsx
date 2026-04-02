@@ -41,6 +41,9 @@ interface SettingsModalProps {
     disableGlow: boolean;
     setDisableGlow: (v: boolean) => void;
 
+    autoRomanizeLyrics: boolean;
+    setAutoRomanizeLyrics: (v: boolean) => void;
+
     updateTitle: boolean;
     setUpdateTitle: (v: boolean) => void;
 
@@ -60,6 +63,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     sleepTimer, setSleepTimer,
     highPerformanceMode, setHighPerformanceMode,
     disableGlow, setDisableGlow,
+    autoRomanizeLyrics, setAutoRomanizeLyrics,
     updateTitle, setUpdateTitle,
     showVisualizer, setShowVisualizer
 }) => {
@@ -195,6 +199,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             case 'PLAYBACK':
                 return (
                     <div className="flex flex-col gap-6 animate-slide-up">
+                        <div className="flex flex-col gap-2">
+                            <ToggleItem 
+                                label="Auto Romanization" 
+                                desc="Automatically show romanized lyrics when they are available"
+                                icon={Languages}
+                                active={autoRomanizeLyrics}
+                                onToggle={() => setAutoRomanizeLyrics(!autoRomanizeLyrics)}
+                                colorClass="text-cyan-400"
+                            />
+                        </div>
+
                         {/* Sleep Timer */}
                         <div>
                             <div className="flex items-center gap-2 font-bold mb-3">
